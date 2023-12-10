@@ -11,8 +11,8 @@ pub struct GravityDirection(pub Vector);
 
 impl GravityDirection {
     /// Constructs a new `GravityDirection`.
-    pub fn new(&mut self, vec: impl Into<Vector>) {
-        self.0 = vec.into();
+    pub fn new(vec: impl Into<Vector>) -> Self {
+        Self(vec.into())
     }
 
     /// Constructs a new `GravityDirection`.
