@@ -43,6 +43,7 @@ type PosIntegrationComponents = (
     &'static Mass,
     &'static InverseMass,
     Option<&'static LockedAxes>,
+    Option<&'static GravityDirection>,
 );
 
 /// Explicitly integrates the positions and linear velocities of bodies taking only external forces
@@ -66,6 +67,7 @@ fn integrate_pos(
         mass,
         inv_mass,
         locked_axes,
+        gravity_direction,
     ) in &mut bodies
     {
         prev_pos.0 = pos.0;
@@ -86,9 +88,26 @@ fn integrate_pos(
             let effective_mass = locked_axes.apply_to_vec(Vector::splat(mass.0));
             let effective_inv_mass = locked_axes.apply_to_vec(Vector::splat(inv_mass.0));
 
+            let gravity = { 
+                if let Some(gravity_direction) = gravity_direction {
+                    #[cfg(feature = "2d")]
+                    {
+                        let distance = (gravity.0.x.powi(2) + gravity.0.y.powi(2)).sqrt();
+                        Vec2::new(gravity_direction.x * distance, gravity_direction.y * distance)
+                    }
+                    #[cfg(feature = "3d")] 
+                    {
+                        let distance = (gravity.0.x.powi(2) + gravity.0.y.powi(2) + gravity.0.z.powi(2)).sqrt();
+                        Vec3::new(gravity_direction.x * distance, gravity_direction.y * distance, gravity_direction.z * distance)
+                    }
+                } else {
+                    gravity.0
+                }
+            };
+
             // Apply forces
             let gravitation_force =
-                effective_mass * gravity.0 * gravity_scale.map_or(1.0, |scale| scale.0);
+                effective_mass * gravity * gravity_scale.map_or(1.0, |scale| scale.0) ;
             let external_forces = gravitation_force + external_force.force();
             let delta_lin_vel = delta_secs * external_forces * effective_inv_mass;
             // avoid triggering bevy's change detection unnecessarily

@@ -7,6 +7,7 @@ mod locked_axes;
 mod mass_properties;
 mod rotation;
 mod world_queries;
+mod gravity_direction;
 
 pub use collider::*;
 pub use forces::*;
@@ -15,6 +16,7 @@ pub use locked_axes::*;
 pub use mass_properties::*;
 pub use rotation::*;
 pub use world_queries::*;
+pub use gravity_direction::*;
 
 use crate::prelude::*;
 use bevy::prelude::*;
