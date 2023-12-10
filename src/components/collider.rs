@@ -5,7 +5,12 @@ use crate::{prelude::*, utils::make_isometry};
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 #[cfg(all(feature = "3d", feature = "async-collider"))]
 use bevy::utils::HashMap;
-use bevy::{log, prelude::*, utils::HashSet};
+use bevy::{
+    ecs::entity::{EntityMapper, MapEntities},
+    log,
+    prelude::*,
+    utils::HashSet,
+};
 use collision::contact_query::UnsupportedShape;
 use itertools::Either;
 use parry::{
@@ -836,13 +841,13 @@ fn scale_shape(
 /// use bevy::prelude::*;
 /// use bevy_xpbd_3d::prelude::*;
 ///
-/// fn setup(mut commands: Commands, mut assets: ResMut<AssetServer>) {
+/// fn setup(mut commands: Commands, mut assets: ResMut<AssetServer>, mut meshes: Assets<Mesh>) {
 ///     // Spawn a cube with a convex hull collider generated from the mesh
 ///     commands.spawn((
 ///         AsyncCollider(ComputedCollider::ConvexHull),
 ///         PbrBundle {
 ///             mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-///             ..default(),
+///             ..default()
 ///         },
 ///     ));
 /// }
@@ -862,38 +867,37 @@ pub struct AsyncCollider(pub ComputedCollider);
 /// use bevy_xpbd_3d::prelude::*;
 ///
 /// fn setup(mut commands: Commands, mut assets: ResMut<AssetServer>) {
-///     let scene = SceneBundle {
-///         scene: assets.load("my_model.gltf#Scene0"),
-///         ..default()
-///     };
+///     let scene = assets.load("my_model.gltf#Scene0");
 ///
 ///     // Spawn the scene and automatically generate triangle mesh colliders
 ///     commands.spawn((
-///         scene.clone(),
+///         SceneBundle { scene: scene.clone(), ..default() },
 ///         AsyncSceneCollider::new(Some(ComputedCollider::TriMesh)),
 ///     ));
 ///
 ///     // Specify configuration for specific meshes by name
 ///     commands.spawn((
-///         scene.clone(),
+///         SceneBundle { scene: scene.clone(), ..default() },
 ///         AsyncSceneCollider::new(Some(ComputedCollider::TriMesh))
 ///             .with_shape_for_name("Tree", ComputedCollider::ConvexHull)
-///             .with_layers_for_name("Tree", CollisionLayers::from_bits(0b0010))
+///             .with_layers_for_name("Tree", CollisionLayers::from_bits(0b0010, 0b1111))
 ///             .with_density_for_name("Tree", 2.5),
 ///     ));
 ///
 ///     // Only generate colliders for specific meshes by name
 ///     commands.spawn((
-///         scene.clone(),
+///         SceneBundle { scene: scene.clone(), ..default() },
 ///         AsyncSceneCollider::new(None)
-///             .with_shape_for_name("Tree".to_string(), Some(ComputedCollider::ConvexHull)),
+///             .with_shape_for_name("Tree", ComputedCollider::ConvexHull),
 ///     ));
 ///
 ///     // Generate colliders for everything except specific meshes by name
 ///     commands.spawn((
-///         scene,
-///         AsyncSceneCollider::new(ComputedCollider::TriMeshWithFlags(TriMeshFlags::MERGE_DUPLICATE_VERTICES))
-///             .without_shape_for_name("Tree"),
+///         SceneBundle { scene, ..default() },
+///         AsyncSceneCollider::new(Some(ComputedCollider::TriMeshWithFlags(
+///             TriMeshFlags::MERGE_DUPLICATE_VERTICES
+///         )))
+///         .without_shape_with_name("Tree"),
 ///     ));
 /// }
 /// ```
@@ -1063,6 +1067,12 @@ impl ColliderParent {
     }
 }
 
+impl MapEntities for ColliderParent {
+    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+        self.0 = entity_mapper.get_or_reserve(self.0)
+    }
+}
+
 /// The transform of a collider relative to the rigid body it's attached to.
 /// This is in the local space of the body, not the collider itself.
 ///
@@ -1186,3 +1196,14 @@ impl Default for ColliderAabb {
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
 pub struct CollidingEntities(pub HashSet<Entity>);
+
+impl MapEntities for CollidingEntities {
+    fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+        self.0 = self
+            .0
+            .clone()
+            .into_iter()
+            .map(|e| entity_mapper.get_or_reserve(e))
+            .collect()
+    }
+}
